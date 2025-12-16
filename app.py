@@ -3,7 +3,46 @@ from flask import Flask, request
 import telebot
 import requests
 import time
+import os
+from flask import Flask, request
+import telebot
+import requests
 
+# ========== ВРЕМЕННОЕ РЕШЕНИЕ - КЛЮЧИ В КОДЕ ==========
+# ЗАМЕНИТЕ ЭТО НА ВАШИ РЕАЛЬНЫЕ КЛЮЧИ!
+TELEGRAM_TOKEN = "8564273978:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI"  # ваш правильный токен
+DEEPSEEK_API_KEY = "sk-3bae2f5d98764d8ac0e56c9a967bc80"  # ваш ключ DeepSeek
+
+# Устанавливаем в окружение
+os.environ['TELEGRAM_TOKEN'] = TELEGRAM_TOKEN
+os.environ['DEEPSEEK_API_KEY'] = DEEPSEEK_API_KEY
+
+# ========== ИНИЦИАЛИЗАЦИЯ ==========
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
+app = Flask(__name__)
+
+# ========== ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ==========
+print("=" * 60)
+print("🚀 ЗАПУСК БОТА С КЛЮЧАМИ ИЗ КОДА")
+print(f"📱 TELEGRAM_TOKEN: {TELEGRAM_TOKEN[:15]}...")
+print(f"🤖 DEEPSEEK_API_KEY: {DEEPSEEK_API_KEY[:10]}...")
+print("=" * 60)
+
+# ========== FLASK РОУТЫ ==========
+@app.route('/')
+def home():
+    return "✅ Бот работает с DeepSeek! Отправьте /start в Telegram"
+
+@app.route('/debug')
+def debug():
+    return f"""
+    <h1>Debug Info</h1>
+    <p>TELEGRAM_TOKEN: {TELEGRAM_TOKEN[:15]}...</p>
+    <p>DEEPSEEK_API_KEY: {DEEPSEEK_API_KEY[:10]}...</p>
+    <p>Режим: <strong>DEEPSEEK AI</strong></p>
+    """
+
+# ... остальной код без изменений ...
 # ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.environ.get("8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI")
 DEEPSEEK_API_KEY = os.environ.get("sk-3baac25d30784da9acb6d5c9a067bc8b")
@@ -146,3 +185,4 @@ if __name__ == '__main__':
     
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
+

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI')
-DEEPSEEK_API_KEY = os.environ.get('sk-69fe68d2a539461694c7367b5b6d7c45')
+DEEPSEEK_API_KEY = os.environ.get('sk-6d409239a66c4d9c90729796dcd0323f')
 
 # ========== ДИАГНОСТИКА ПРИ ЗАПУСКЕ ==========
 logger.info("=" * 60)
@@ -342,3 +342,4 @@ if __name__ == '__main__':
     logger.info("=" * 60)
     
     app.run(host='0.0.0.0', port=port, debug=False)
+

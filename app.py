@@ -4,15 +4,16 @@ import telebot
 import requests
 
 # ========== КОНФИГУРАЦИЯ ==========
-TELEGRAM_TOKEN = os.environ.get('8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI')
-DEEPSEEK_API_KEY = os.environ.get('sk-3baac25d30784da9acb6d5c9a067bc8b')
+TELEGRAM_TOKEN = os.environ.get("8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI")
+DEEPSEEK_API_KEY = os.environ.get("sk-3baac25d30784da9acb6d5c9a067bc8b")
 
 if not TELEGRAM_TOKEN:
     print("❌ ОШИБКА: TELEGRAM_TOKEN не найден!")
+    TELEGRAM_TOKEN = "8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI"  # временно для теста
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
-app = Flask(__name__)  # ← ВАЖНО: переменная 'app'
+bot = telebot.TeleBot(TELEGRAM_TOKEN)  # ← ТОКЕН В КАВЫЧКАХ!
+app = Flask(__name__)
 
 # ========== FLASK РОУТЫ ==========
 @app.route('/')
@@ -39,36 +40,24 @@ def send_welcome(message):
 def handle_message(message):
     try:
         if DEEPSEEK_API_KEY:
-            headers = {
-                "Authorization": f"Bearer {sk-3baac25d30784da9acb6d5c9a067bc8b}",
-                "Content-Type": "application/json"
-            }
-            
+            headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
             data = {
                 "model": "deepseek-chat",
-                "messages": [{"role": "user", "content": message.text}],
-                "stream": False,
-                "max_tokens": 1000
+                "messages": [{"role": "user", "content": message.text}]
             }
-            
             response = requests.post(
                 "https://api.deepseek.com/chat/completions",
                 json=data,
                 headers=headers,
                 timeout=30
             )
-            response_data = response.json()
-            answer = response_data["choices"][0]["message"]["content"]
+            answer = response.json()["choices"][0]["message"]["content"]
             bot.reply_to(message, answer[:4000])
         else:
             bot.reply_to(message, f"Вы сказали: {message.text}")
             
     except Exception as e:
-        error_msg = str(e)
-        if "429" in error_msg:
-            bot.reply_to(message, "⚠️ Лимит запросов к API. Попробуйте позже.")
-        else:
-            bot.reply_to(message, f"Ошибка: {error_msg[:200]}")
+        bot.reply_to(message, f"Ошибка: {str(e)[:200]}")
 
 # ========== ЗАПУСК ==========
 if __name__ == '__main__':

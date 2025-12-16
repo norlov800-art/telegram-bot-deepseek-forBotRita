@@ -11,7 +11,7 @@ import requests
 # ========== ВРЕМЕННОЕ РЕШЕНИЕ - КЛЮЧИ В КОДЕ ==========
 # ЗАМЕНИТЕ ЭТО НА ВАШИ РЕАЛЬНЫЕ КЛЮЧИ!
 TELEGRAM_TOKEN = "8564273978:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI"  # ваш правильный токен
-DEEPSEEK_API_KEY = "sk-3bae2f5d98764d8ac0e56c9a967bc80"  # ваш ключ DeepSeek
+DEEPSEEK_API_KEY = "sk-69fe68d2a539461694c7367b5b6d7c45"  # ваш ключ DeepSeek
 
 # Устанавливаем в окружение
 os.environ['TELEGRAM_TOKEN'] = TELEGRAM_TOKEN
@@ -185,4 +185,5 @@ if __name__ == '__main__':
     
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 

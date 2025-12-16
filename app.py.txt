@@ -1,48 +1,66 @@
 import os
 import telebot
 import requests
-from flask import Flask
+import logging
+from flask import Flask, request
+
+# Настройка логирования
+logging.basicConfig(level=logging.DEBUG)
 
 # Конфигурация
 TELEGRAM_TOKEN = os.environ.get('8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI')
 DEEPSEEK_API_KEY = os.environ.get('sk-3baac25d30784da9acb6d5c9a067bc8b')
-DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
-bot = telebot.TeleBot(8504373078:AAEINBhCSq7yBC42A5Ucf14Z-UmK95WEqXI)
+# Проверка переменных
+if not TELEGRAM_TOKEN:
+    print("❌ TELEGRAM_TOKEN не найден!")
+if not DEEPSEEK_API_KEY:
+    print("⚠️ DEEPSEEK_API_KEY не найден, бот будет работать в эхо-режиме")
+
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Бот работает! ✅"
+    return "✅ Telegram Bot is running! Use /start command"
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    return 'Bad request', 403
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "👋 Привет! Я работающий бот. Задавайте вопросы!")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     try:
-        headers = {
-            "Authorization": f"Bearer {sk-3baac25d30784da9acb6d5c9a067bc8b}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": "deepseek-chat",
-            "messages": [{"role": "user", "content": message.text}],
-            "stream": False
-        }
-        
-        response = requests.post(DEEPSEEK_API_URL, json=data, headers=headers)
-        response_data = response.json()
-        
-        answer = response_data["choices"][0]["message"]["content"]
-        bot.reply_to(message, answer[:4096])
-        
+        # Если есть API ключ DeepSeek
+        if DEEPSEEK_API_KEY:
+            headers = {"Authorization": f"Bearer {sk-3baac25d30784da9acb6d5c9a067bc8b}"}
+            data = {
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": message.text}]
+            }
+            response = requests.post(
+                "https://api.deepseek.com/chat/completions",
+                json=data,
+                headers=headers,
+                timeout=10
+            )
+            answer = response.json()["choices"][0]["message"]["content"]
+            bot.reply_to(message, answer[:4000])
+        else:
+            # Эхо-режим если нет API ключа
+            bot.reply_to(message, f"Вы сказали: {message.text}")
     except Exception as e:
-        bot.reply_to(message, f"Ошибка: {str(e)}")
-
-def start_bot():
-    print("Бот запущен...")
-    bot.remove_webhook()
-    bot.polling(none_stop=True)
+        bot.reply_to(message, f"Ошибка: {str(e)[:200]}")
 
 if __name__ == '__main__':
-    from waitress import serve
-    serve(app, host="0.0.0.0", port=10000)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)

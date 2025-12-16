@@ -1,14 +1,14 @@
 import os
 import telebot
 import requests
+import json
 import logging
 from flask import Flask, request
 
-# --- Конфигурация ---
+# --- КОНФИГУРАЦИЯ ---
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 YANDEX_API_KEY = os.environ.get('YANDEX_API_KEY')
 YANDEX_FOLDER_ID = os.environ.get('YANDEX_FOLDER_ID')
-# Модель: "yandexgpt-lite" (быстрая, для чата) или "yandexgpt" (Pro, для сложных задач)[citation:2][citation:7]
 YANDEX_MODEL = "yandexgpt-lite"
 
 # Настройка логирования
@@ -21,19 +21,17 @@ app = Flask(__name__)
 def ask_yandex_gpt(user_message, system_prompt="Ты полезный и вежливый ассистент."):
     """
     Отправляет запрос к YandexGPT API и возвращает текстовый ответ.
-    Структура запроса соответствует официальной документации[citation:3][citation:4].
     """
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Api-Key {YANDEX_API_KEY}"  # Аутентификация по API-ключу[citation:3]
+        "Authorization": f"Api-Key {YANDEX_API_KEY}"
     }
-    # Формирование промпта с учетом ролей system, user, assistant[citation:3]
     data = {
         "modelUri": f"gpt://{YANDEX_FOLDER_ID}/{YANDEX_MODEL}",
         "completionOptions": {
             "stream": False,
-            "temperature": 0.6,  # Параметр "творчества" от 0 до 1
+            "temperature": 0.6,
             "maxTokens": 1500
         },
         "messages": [
@@ -41,21 +39,57 @@ def ask_yandex_gpt(user_message, system_prompt="Ты полезный и веж�
             {"role": "user", "text": user_message}
         ]
     }
+
+    # === ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ЗАПРОСА ===
+    logger.info(f"🔍 Отправляю запрос к YandexGPT на URL: {url}")
+    logger.info(f"🔍 Использую Folder ID: {YANDEX_FOLDER_ID}")
+    logger.info(f"🔍 Заголовок Authorization начинается с: {YANDEX_API_KEY[:15]}...")
+    logger.info(f"🔍 Тело запроса (data): {json.dumps(data, ensure_ascii=False)[:500]}...")
+
     try:
         response = requests.post(url, headers=headers, json=data, timeout=30)
-        response.raise_for_status()  # Проверка на ошибки HTTP
-        result_json = response.json()
-        # Извлечение текста ответа из структуры JSON[citation:3]
-        answer_text = result_json['result']['alternatives'][0]['message']['text']
-        return answer_text.strip()
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Ошибка сети при запросе к YandexGPT: {e}")
-        return "Извините, произошла ошибка соединения с AI."
-    except (KeyError, ValueError) as e:
-        logger.error(f"Ошибка разбора ответа от YandexGPT: {e}")
-        return "Извините, не удалось обработать ответ от AI."
+        logger.info(f"📡 Получен HTTP статус от YandexGPT: {response.status_code}")
+        logger.info(f"📡 Заголовки ответа: {dict(response.headers)}")
 
-# --- Обработчики команд Telegram ---
+        # Пытаемся залогировать тело ответа
+        try:
+            response_body = response.text[:1000]
+            logger.info(f"📦 Тело ответа: {response_body}")
+        except:
+            logger.info("📦 Не удалось прочитать тело ответа для логирования")
+
+        response.raise_for_status()
+        result_json = response.json()
+        answer_text = result_json['result']['alternatives'][0]['message']['text']
+        logger.info(f"✅ Успешно получили ответ от AI")
+        return answer_text.strip()
+
+    except requests.exceptions.Timeout:
+        logger.error("⏱ Таймаут запроса к YandexGPT (30 сек)")
+        return "Извините, AI-сервис не ответил вовремя."
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"🔌 Ошибка соединения с YandexGPT: {e}")
+        return "Извините, не удалось установить соединение с AI-сервисом."
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"🚨 Ошибка HTTP от YandexGPT: {e}")
+        logger.error(f"Код статуса: {response.status_code if 'response' in locals() else 'N/A'}")
+        
+        if response.status_code == 403:
+            return "Ошибка доступа (403). Проверьте API-ключ и права доступа каталога."
+        elif response.status_code == 404:
+            return "Ресурс не найден (404). Проверьте правильность Folder ID и имя модели."
+        elif response.status_code == 429:
+            return "Слишком много запросов (429). Превышен лимит. Попробуйте позже."
+        else:
+            return f"Ошибка сервера AI (код {response.status_code})."
+    except (KeyError, ValueError) as e:
+        logger.error(f"📊 Ошибка разбора JSON-ответа от YandexGPT: {e}")
+        return "Извините, AI-сервис вернул неожиданный ответ."
+    except Exception as e:
+        logger.error(f"💥 Неизвестная ошибка при запросе к YandexGPT: {type(e).__name__}: {e}")
+        return "Извините, произошла непредвиденная ошибка."
+
+# --- TELEGRAM ОБРАБОТЧИКИ ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
@@ -79,21 +113,17 @@ def send_status(message):
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     logger.info(f"Получено сообщение от {message.from_user.id}: {message.text}")
-    # Показываем пользователю, что бот "печатает"
     bot.send_chat_action(message.chat.id, 'typing')
-    # Получаем ответ от YandexGPT
     answer = ask_yandex_gpt(message.text)
-    # Отправляем ответ пользователю
     bot.reply_to(message, answer)
 
-# --- Flask эндпоинты для вебхука ---
+# --- FLASK ЭНДПОИНТЫ ---
 @app.route('/')
 def home():
     return "🤖 Telegram Bot with YandexGPT is running!"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Конечная точка, куда Telegram отправляет обновления."""
     if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
@@ -102,16 +132,16 @@ def webhook():
     else:
         return 'Bad Request', 400
 
+# --- ЗАПУСК ---
 if __name__ == '__main__':
-    # Проверка обязательных переменных окружения
+    # Проверка переменных при запуске
     if not TELEGRAM_TOKEN:
-        logger.error("CRITICAL: Переменная окружения TELEGRAM_TOKEN не задана.")
+        logger.error("CRITICAL: Переменная TELEGRAM_TOKEN не задана.")
     if not YANDEX_API_KEY:
-        logger.error("CRITICAL: Переменная окружения YANDEX_API_KEY не задана.")
+        logger.error("CRITICAL: Переменная YANDEX_API_KEY не задана.")
     if not YANDEX_FOLDER_ID:
-        logger.error("CRITICAL: Переменная окружения YANDEX_FOLDER_ID не задана.")
+        logger.error("CRITICAL: Переменная YANDEX_FOLDER_ID не задана.")
 
-    # Запуск Flask-сервера (Render сам устанавливает переменную PORT)
     port = int(os.environ.get('PORT', 10000))
     logger.info(f"Запуск бота на порту {port}...")
     app.run(host='0.0.0.0', port=port, debug=False)
